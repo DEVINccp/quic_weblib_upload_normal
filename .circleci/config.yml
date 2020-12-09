@@ -1,0 +1,56 @@
+version: 2.1
+executors:
+  test-go114:
+    docker:
+      - image: "circleci/golang:1.14"
+    environment:
+      runrace: true
+  test-go115:
+    docker:
+      - image: "circleci/golang:1.15"
+    environment:
+      runrace: true
+ 
+jobs:
+  "test": &test
+    executor: test-go114
+    working_directory: /go/src/github.com/lucas-clemente/quic-go
+    steps:
+      - checkout
+      - run:
+          name: "Setup build environment"
+          command: |
+            go get github.com/onsi/ginkgo/ginkgo
+            go get github.com/onsi/gomega
+      - run:
+          name: "Build infos"
+          command: go version
+      - run:
+          name: "Run benchmark tests"
+          command: ginkgo -randomizeAllSpecs -trace benchmark -- -size=10
+      - run:
+          name: "Run benchmark tests with race detector"
+          command: ginkgo -race -randomizeAllSpecs -trace benchmark -- -size=5
+      - run:
+          name: "Run tools tests"
+          command: ginkgo -race -r -v -randomizeAllSpecs -trace integrationtests/tools
+      - run:
+          name: "Run self integration tests"
+          command: ginkgo -v -randomizeAllSpecs -trace integrationtests/self
+      - run:
+          name: "Run self integration tests with race detector"
+          command: ginkgo -race -v -randomizeAllSpecs -trace integrationtests/self
+      - run:
+          name: "Run self integration tests with qlog and metrics"
+          command: ginkgo -v -randomizeAllSpecs -trace integrationtests/self -- -qlog -metrics
+  go114:
+    <<: *test
+  go115:
+    <<: *test
+    executor: test-go115
+
+workflows:
+  workflow:
+    jobs:
+      - go114
+      - go115
