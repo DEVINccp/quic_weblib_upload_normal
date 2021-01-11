@@ -6,7 +6,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"github.com/lucas-clemente/quic-go/example/regist"
+	"github.com/lucas-clemente/quic-go/example/oauth"
 	"io"
 	"io/ioutil"
 	"log"
@@ -17,6 +17,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/lucas-clemente/quic-go"
 	"github.com/lucas-clemente/quic-go/http3"
@@ -313,7 +314,7 @@ func setupHandler(www string, trace bool) http.Handler {
 			</form></body></html>`)
 	})
 
-	mux.HandleFunc("/info", func(writer http.ResponseWriter, request *http.Request) {
+	mux.HandleFunc("/quic/info", func(writer http.ResponseWriter, request *http.Request) {
 		writer.Write([]byte("info page"))
 	})
 
@@ -330,17 +331,39 @@ func setupHandler(www string, trace bool) http.Handler {
 		//	writer.Write([]byte("access toekn invalid!\n"))
 		//	return
 		//}
-
+		fmt.Println("uploadChunkResource request!")
 		contentRange := request.Header.Get("Content-Range")
 		fmt.Println(contentRange)
 		if contentRange != NULL {
 			fmt.Println("Chunk Upload!")
-			//chunkUpload(request)
+			chunkUpload(request)
 		} else {
 			fmt.Println("Normal Upload!")
+			start := time.Now()
 			uploadFile(request)
+			end := time.Since(start)
+			filename := request.Header.Get("filename")
+			size := request.Header.Get("filesize")
+			testResult := "fileName:" + filename + ";fileSize:" + size + ";time:" + end.String() +";\n"
+			writeTestResultIntoFile("/home/chengpingcai/Downloads/testResult.txt",testResult)
 		}
 		writer.Write([]byte("{\"type\":\"success\",\"code\":\"200\",\"detail\":\"ok\",\"success\":true,\"port\":6121}"))
+	})
+
+	mux.HandleFunc("/demo/download", func(writer http.ResponseWriter, request *http.Request) {
+		accessToken := request.Header.Get("Authorization")
+		if accessToken == NULL {
+			//There can redirect to login.html TO-DO
+			writer.Write([]byte("please login!\n"))
+			return
+		}
+
+		isValidAccessToken := oauth.DecodeRsaToken(accessToken)
+		if !isValidAccessToken {
+			writer.Write([]byte("access toekn invalid!\n"))
+			return
+		}
+		downloadFile(&writer, request)
 	})
 
 	if !trace {
@@ -366,14 +389,14 @@ func main() {
 	flag.Parse()
 
 	//register server to eureka
-	defaultZone := "http://192.168.1.108:7071/eureka/"
-	appName := "upload"
-	port := 6121
-	renewalInterval := 10
-	durationInterval := 30
-	go func() {
-		regist.Regist(defaultZone,appName,port,renewalInterval,durationInterval)
-	}()
+	//defaultZone := "http://192.168.1.116:7071/eureka/"
+	//appName := "quic-upload"
+	//port := 6121
+	//renewalInterval := 10
+	//durationInterval := 30
+	//go func() {
+	//	regist.Regist(defaultZone,appName,port,renewalInterval,durationInterval)
+	//}()
 
 	logger := utils.DefaultLogger
 
@@ -385,7 +408,7 @@ func main() {
 	logger.SetLogTimeFormat("")
 
 	if len(bs) == 0 {
-		bs = binds{"192.168.1.150:6121"}
+		bs = binds{"127.0.0.1:6121"}
 	}
 
 	handler := setupHandler(*www, *trace)
@@ -438,4 +461,38 @@ func main() {
 	}
 	wg.Done()
 	wg.Wait()
+}
+
+func writeTestResultIntoFile(testResultPath,result string) {
+	exist := checkFilePathExist(testResultPath)
+	if exist {
+		file, err := os.OpenFile(testResultPath, os.O_WRONLY|os.O_APPEND, 0666)
+		defer file.Close()
+		if err != nil {
+			log.Fatal("open file failed")
+		}
+		file.Write([]byte(result))
+	} else {
+		lastIndex := strings.LastIndex(testResultPath, "/")
+		path := testResultPath[:lastIndex]
+		os.MkdirAll(path,0777)
+		create, err := os.Create(testResultPath)
+		if err != nil {
+			log.Fatal("create file error")
+			return
+		}
+		defer create.Close()
+		create.Write([]byte(result))
+	}
+}
+
+func checkFilePathExist(path string) bool {
+	_, err := os.Stat(path)
+	if err != nil {
+		if os.IsExist(err){
+			return true
+		}
+		return false
+	}
+	return true
 }

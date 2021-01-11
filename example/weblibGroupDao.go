@@ -2,6 +2,7 @@ package main
 
 import (
 	"database/sql"
+	"fmt"
 	"log"
 )
 
@@ -18,6 +19,7 @@ type Group struct {
 }
 
 func getGroupByGroupId(DB *sql.DB, groupId int64) *Group {
+	fmt.Println(groupId)
 	group := new(Group)
 	row := DB.QueryRow("select id,name,display_name,path,category_id,type,available_capacity,used_capacity,total_file_size from weblib_group where id=?", groupId)
 	err := row.Scan(&group.id, &group.name, &group.displayName, &group.path, &group.categoryId, &group.groupType, &group.availableCapacity, &group.usedCapacity, &group.groupTotalSize)

@@ -1,4 +1,4 @@
-package regist
+ package regist
 
 import (
 	"errors"

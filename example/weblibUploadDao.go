@@ -11,7 +11,7 @@ const (
 	USERNAME = "root"
 	PASSWORD = "ccnl4780#"
 	NETWORK = "tcp"
-	SERVER = "127.0.0.1"
+	SERVER = "192.168.1.199"
 	PORT = 3306
 	DATABASE = "weblibnew"
 )
@@ -71,6 +71,7 @@ func addUploadLog(DB *sql.DB, resource *Resource, group *Group, host, userAgent 
 }
 
 func getCategoryByCategoryName(DB *sql.DB, categoryName string) *Category{
+	fmt.Println(categoryName)
 	category := new(Category)
 	row := DB.QueryRow("select id,name from weblib_category where name=?", categoryName)
 	err := row.Scan(&category.id, &category.name)

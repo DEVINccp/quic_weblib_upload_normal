@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"strconv"
 	"time"
 )
 
@@ -20,7 +21,7 @@ type Resource struct {
 	memberName string
 	fileOriginalName string
 	flag string
-	total string
+	detailSize int64
 	size int64
 	lastModified string
 	resourceStatus string
@@ -29,6 +30,7 @@ type Resource struct {
 	filePreName string
 	filePath string
 	name string
+	reserveField int64
 }
 
 func GetResourcePathById(DB *sql.DB, parentId string) (*Resource,error) {
@@ -48,7 +50,7 @@ func saveResourceInfoIntoDatabase(DB *sql.DB, resource *Resource) int64{
 	createDate := resource.now.Format("2006-01-02 15:04:05")
 	exec, err := DB.Exec("insert into weblib_group_resource(parent_id,group_id,group_name,member_id,member_name,content_type,create_date,original_name,finish_sign,detail_size,"+
 		"size,path,type,resource_status,upload_rate,name) values(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", resource.parentId, resource.groupId, resource.groupName, resource.memberId, resource.memberName,
-		resource.contentType, createDate, resource.fileOriginalName, resource.flag, resource.total, resource.size, resource.path, resource.resourceType, resource.resourceStatus, resource.rate,resource.name)
+		resource.contentType, createDate, resource.fileOriginalName, resource.flag, resource.detailSize, resource.size, resource.path, resource.resourceType, resource.resourceStatus, resource.rate,resource.name)
 	resourceId, err := exec.LastInsertId()
 	if err != nil {
 		fmt.Printf("Insert data into fileState failed, err：%v\n", err)
@@ -59,9 +61,16 @@ func saveResourceInfoIntoDatabase(DB *sql.DB, resource *Resource) int64{
 }
 
 func updateResourceByResourceId(DB *sql.DB, resource *Resource){
-	_, err := DB.Exec("update weblib_group_resource set upload_rate=?,finish_sign=?,file_pre_name=?,name=? where id=?",resource.rate,resource.flag,resource.filePreName,resource.name,resource.id)
+	_, err := DB.Exec("update weblib_group_resource set upload_rate=?,finish_sign=?,file_pre_name=?,name=?,file_path=? where id=?",resource.rate,resource.flag,resource.filePreName,resource.name,resource.filePath,resource.id)
 	if err != nil {
-		fmt.Printf("Insert data into fileState failed, err：%v\n", err)
+		fmt.Printf("update resource failed：%v\n", err)
+	}
+}
+
+func updateResourceReserveFieldByResourceId(DB *sql.DB, resource *Resource) {
+	_, err := DB.Exec("update weblib_group_resource set reserve_field1=? where id=?", strconv.FormatInt(resource.reserveField, 10), resource.id)
+	if err != nil {
+		fmt.Printf("update resource failed：%v\n", err)
 	}
 }
 
@@ -83,37 +92,15 @@ if err != nil {
 }
 }
 
-
-
-func modifyResourceReserveField1(DB *sql.DB, resourceId, nextIndex string) bool{
-	_, err := DB.Exec("update weblib_group_resource set reserve_field1=? where id=?", nextIndex,resourceId)
-	if err != nil {
-		fmt.Printf("update data in weblib_group_resource failed, err：%v\n", err)
-		return false
-	}
-	fmt.Print("update data in weblib_group_resource success\n")
-	return true
-}
-
-func queryResourceReserveFiled1(DB *sql.DB, resourceId string) string {
-	row := DB.QueryRow("select reserve_field1 from weblib_group_resource where id=?", resourceId)
-	if row.Err() == sql.ErrNoRows {
-		return ""
-	}
-	var reserveField1 string
-	if err := row.Scan(&reserveField1); err != nil {
-		fmt.Printf("query data in weblib_group error:%v\n", err)
-		return ""
-	}
-	return reserveField1
-}
-
-func queryResourceByResourceId(DB *sql.DB, resourceId string) *Resource {
+func queryResourceByResourceId(DB *sql.DB, resourceId int64) *Resource {
 	resource := new(Resource)
+	var reserveField string
 	row := DB.QueryRow("select group_id,group_name,member_id,member_name,content_type,create_date,original_name,finish_sign,detail_size,"+
-		"size,path,type,resource_status from weblib_group_resource where id=?", resourceId)
+		"size,path,type,resource_status,reserve_field1 from weblib_group_resource where id=?", resourceId)
 	err := row.Scan(&resource.groupId, &resource.groupName, &resource.memberId, &resource.memberName, &resource.contentType, &resource.now,
-		&resource.fileOriginalName, &resource.flag, &resource.total, &resource.size, &resource.path, &resource.resourceType, &resource.resourceStatus)
+		&resource.fileOriginalName, &resource.flag, &resource.detailSize, &resource.size, &resource.path, &resource.resourceType, &resource.resourceStatus, &reserveField)
+	parseUint, _ := strconv.ParseInt(reserveField, 10, 64)
+	resource.reserveField = parseUint
 	if err != nil {
 		log.Fatal("query resource failed!\n")
 		return nil
@@ -125,5 +112,19 @@ func DeleteResourceInfoByResourceId(DB *sql.DB, resourceId int64){
 	_, err := DB.Exec("delete from weblib_group_resource where id=?", resourceId)
 	if err != nil {
 		panic("delete resource failed!")
+	}
+}
+
+func updateResourceAtLastChunk(DB *sql.DB, resource *Resource) {
+	_, err := DB.Exec("update weblib_group_resource set last_modified=?,reserve_field1=? where id=?", resource.lastModified, strconv.FormatInt(resource.reserveField, 10), resource.id)
+	if err != nil {
+		panic("update resource failed!")
+	}
+}
+
+func updateResourceAtMiddle(DB *sql.DB, resource *Resource) {
+	_, err := DB.Exec("update weblib_group_resource set last_modified=?,reserve_field1=? where id=?", resource.lastModified, strconv.FormatInt(resource.reserveField, 10), resource.id)
+	if err != nil {
+		panic("update resource failed!")
 	}
 }

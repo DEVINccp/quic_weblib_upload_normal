@@ -9,6 +9,12 @@ import (
 	"encoding/hex"
 	"flag"
 	"fmt"
+	"github.com/lucas-clemente/quic-go"
+	"github.com/lucas-clemente/quic-go/http3"
+	"github.com/lucas-clemente/quic-go/internal/testdata"
+	"github.com/lucas-clemente/quic-go/internal/utils"
+	"github.com/lucas-clemente/quic-go/logging"
+	"github.com/lucas-clemente/quic-go/qlog"
 	uuid "github.com/satori/go.uuid"
 	"io"
 	"io/ioutil"
@@ -22,13 +28,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-
-	"github.com/lucas-clemente/quic-go"
-	"github.com/lucas-clemente/quic-go/http3"
-	"github.com/lucas-clemente/quic-go/internal/testdata"
-	"github.com/lucas-clemente/quic-go/internal/utils"
-	"github.com/lucas-clemente/quic-go/logging"
-	"github.com/lucas-clemente/quic-go/qlog"
 )
 
 const (
@@ -52,12 +51,14 @@ func main() {
 	enableQlog := flag.Bool("qlog", false, "output a qlog (in the same directory)")
 	//filePath := flag.String("filePath","","upload file path")
 	//testResultStorePath := flag.String("testResult","","test result store path")
+	uploadPath := flag.String("uploadPath","/home/chengpingcai/Pictures/1M.zip","upload real path")
+	testResultPath := flag.String("testResultPath","/home/chengpingcai/Downloads/testResultM.txt","test result store path")
 	flag.Parse()
 	urls := flag.Args()
-	filePath1 := "/home/chengpingcai/Pictures/1M.zip"
-	filePath := &filePath1
-	testResultStorePath1 := "/home/chengpingcai/Pictures/testResult.txt"
-	testResultStorePath := &testResultStorePath1
+	//filePath1 := "/home/chengpingcai/Pictures/1M.zip"
+	//filePath := &filePath1
+	//testResultStorePath1 := "/home/chengpingcai/Pictures/testResult.txt"
+	//testResultStorePath := &testResultStorePath1
 	logger := utils.DefaultLogger
 
 	if *verbose {
@@ -110,44 +111,31 @@ func main() {
 
 	var wg sync.WaitGroup
 	wg.Add(len(urls))
-
-	fileMd5 := getFileMd5(*filePath)
-	start := time.Now()
-	fileState, uuid := getFileState(fileMd5, hClient)
-	fmt.Println("uuid:getFileState:"+uuid)
-	contentType, err := getFileContentType(*filePath)
-	fmt.Println(contentType)
-	count := getFileFragmentCount(*filePath)
-	switch fileState {
-	case FILEUPLOADNONE:
-		info := writeFileInfo(fileMd5, *filePath, uuid, hClient)
-		if !info {
-			fmt.Println("Upload file failed")
-			break
-		}
-		for i := 1; i<=count; i++ {
-			uploadIndex(*filePath, uuid, i, hClient)
-		}
-
-	case FILEUPLOADSECTION:
-		for i := 1; i <= count; i++ {
-			result := checkIndex(i, uuid, hClient)
-			if !result {
-				for j := i; j<=count; j++ {
-					fmt.Println("uuid:"+uuid)
-					uploadIndex(*filePath, uuid, j, hClient)
-				}
-				break
-			}
-		}
-	case FILEUPLOADSUCCESS:
-		fmt.Println("Upload file success")
+	//simpleChunkUpload(filepath,testResultStorePath,hClient)
+	param := map[string]string{"groupId": "20",
+		"parentId":"22","currentMemberId":"20","currentMemberName":"root","name":"root"}
+	//uploadPath := "/home/chengpingcai/Pictures/50M.zip"
+	uploadRequest, err := uploadFileIntoWeblib(*uploadPath, "https://192.168.1.199:6121/uploadChunkResource", param)
+	open, err := os.Open(*uploadPath)
+	if err != nil {
+		log.Fatal("open file failed!")
 	}
-
+	defer open.Close()
+	stat, err := open.Stat()
+	size := stat.Size()
+	filesize := strconv.FormatInt(size, 10)
+	uploadRequest.Header.Add("filename",stat.Name())
+	uploadRequest.Header.Add("filesize",filesize)
+	if err != nil {
+		log.Fatal("make request failed!")
+	}
+	start := time.Now()
+	hClient.Do(uploadRequest)
 	end := time.Since(start)
-	fmt.Println("Upload time:",end)
-	result := "filePath:"+(*filePath)+"; fileMds:"+fileMd5+"; fileContentType:"+contentType+"; fileLength:"+strconv.Itoa(int(getFileLength(*filePath)))+"; time:"+end.String()+"\n"
-	writeTestResultIntoFile(*testResultStorePath,result)
+	//testResult := "fileName:" + stat.Name() + ";fileSize:" + filesize + ";time:" + end.String() +"\n"
+
+	testResult := timeTransferToSeconds(end.String()) + "\n"
+	writeTestResultIntoFile(*testResultPath, testResult)
 
 	for _, addr := range urls {
 		logger.Infof("GET %s", addr)
@@ -174,6 +162,46 @@ func main() {
 		}(addr)
 	}
 	wg.Wait()
+}
+
+func simpleChunkUpload(filePath,testResultStorePath string, hClient *http.Client) {
+	fileMd5 := getFileMd5(filePath)
+	start := time.Now()
+	fileState, uuid := getFileState(fileMd5, hClient)
+	fmt.Println("uuid:getFileState:"+uuid)
+	contentType, _ := getFileContentType(filePath)
+	fmt.Println(contentType)
+	count := getFileFragmentCount(filePath)
+	switch fileState {
+	case FILEUPLOADNONE:
+		info := writeFileInfo(fileMd5, filePath, uuid, hClient)
+		if !info {
+			fmt.Println("Upload file failed")
+			break
+		}
+		for i := 1; i<=count; i++ {
+			uploadIndex(filePath, uuid, i, hClient)
+		}
+
+	case FILEUPLOADSECTION:
+		for i := 1; i <= count; i++ {
+			result := checkIndex(i, uuid, hClient)
+			if !result {
+				for j := i; j<=count; j++ {
+					fmt.Println("uuid:"+uuid)
+					uploadIndex(filePath, uuid, j, hClient)
+				}
+				break
+			}
+		}
+	case FILEUPLOADSUCCESS:
+		fmt.Println("Upload file success")
+	}
+
+	end := time.Since(start)
+	fmt.Println("Upload time:",end)
+	result := "filePath:"+(filePath)+"; fileMds:"+fileMd5+"; fileContentType:"+contentType+"; fileLength:"+strconv.Itoa(int(getFileLength(filePath)))+"; time:"+end.String()+"\n"
+	writeTestResultIntoFile(testResultStorePath,result)
 }
 
 func getFileMd5(filePath string) string {
@@ -429,3 +457,57 @@ func getFileLength(filePath string) int64{
 	fileLength := stat.Size()
 	return fileLength
 }
+
+//make multipart/form post request
+func uploadFileIntoWeblib(filePath, url string, params map[string]string) (*http.Request, error){
+	file, err := os.Open(filePath)
+	if err != nil {
+		return nil,err
+	}
+	defer file.Close()
+
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+
+	formFile, err := writer.CreateFormFile("filedata", filepath.Base(filePath))
+	if err != nil {
+		return nil, err
+	}
+	_, err = io.Copy(formFile, file)
+
+	err = writer.Close()
+	if err != nil {
+		return nil, err
+	}
+	url = url + "?"
+	for key,val := range params {
+		url = url + key + "=" + val + "&"
+	}
+	request, err := http.NewRequest("POST", url, body)
+	if err != nil {
+		return nil, err
+	}
+	request.Header.Add("Content-Type", writer.FormDataContentType())
+	return request, nil
+}
+
+func timeTransferToSeconds(testTime string) string{
+	if strings.Contains(testTime, "ms") {
+		split := strings.Split(testTime, "m")
+		float, _ := strconv.ParseFloat(split[0], 64)
+		result := float / 1000
+		return strconv.FormatFloat(result,'f',10,64)
+	}
+	if strings.Contains(testTime,"m") && !strings.Contains(testTime,"h"){
+		splitS := strings.Split(testTime, "s")
+		splitM := strings.Split(splitS[0], "m")
+		parseMinute, _ := strconv.ParseInt(splitM[0], 10, 64)
+		splitPoint := strings.Split(splitM[1], ".")
+		parsePointBefore, _ := strconv.ParseInt(splitPoint[0], 10, 64)
+		allSeconds := parseMinute * 60 + parsePointBefore
+		formatInt := strconv.FormatInt(allSeconds, 10)
+		return  formatInt + "." + splitPoint[1]
+	}
+	return testTime
+}
+

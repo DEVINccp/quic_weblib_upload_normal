@@ -25,6 +25,7 @@ const (
 	PERSONAL_CATEGORY_NAME = "#person"
 	ROOT_DOMAIN_NAME = "#domain"
 	UPLOAD_PATH_ROOT = "/home/weblib/weblibdata"
+	UPLOAD_TEMP_FOLDER = "/home/weblib/resource/weblibapps/temp"
 	enableRoleModule = true
 	enableDomainModule = true
 )
@@ -55,7 +56,6 @@ func uploadFile(request *http.Request) {
 		log.Fatal("Connect weblib failed!\n")
 		return
 	}
-
 	var group *Group
 	if groupId == 0 {
 		if name == NULL {
@@ -70,10 +70,6 @@ func uploadFile(request *http.Request) {
 	if group == nil {
 		log.Fatal("Can not find the user's cabinet")
 		return
-	}
-
-	if parentId == 0 {
-		parentId = 0
 	}
 
 	if isMultipart(request) {
@@ -149,7 +145,7 @@ func uploadFile(request *http.Request) {
 				resourceStatus: RESOURCE_STATUS_NORMAL,
 				flag: 					UPLOAD_UNFINISH,
 				size: 					len,
-				total: 					strconv.Itoa(int(fileSize)),
+				detailSize: 		fileSize,
 				path:           pathTmp,
 				name: 					filename,
 			}
@@ -170,8 +166,7 @@ func uploadFile(request *http.Request) {
 			beginUploadFile(data, resource, group, database, host, userAgent)
 			//begin thumbnail
 
-			currentSize, err := strconv.ParseInt(resource.total, 10, 64)
-			uploadSize = uploadSize + currentSize
+			uploadSize = uploadSize + resource.detailSize
 			//modify parent folder used capacity
 			modifyParentFolderSize(database, resource)
 		}
@@ -181,139 +176,175 @@ func uploadFile(request *http.Request) {
 	defer database.Close()
 }
 
-//func chunkUpload(request *http.Request) {
-//	//TO-DO
-//	contentRange := request.Header.Get("Content-Range")
-//	query := request.URL.Query()
-//	groupId := query.Get("groupId")
-//	parentId := query.Get("parentId")
-//	resourceId := query.Get("resourceId")
-//	lastModified := query.Get("lastModified")
-//	name := query.Get("name")
-//	//path := query.Get("path")
-//	memberId := query.Get("currentMemberId")
-//	memberName := query.Get("currentMemberName")
-//
-//	database, err := ConnectWebLibDatabase()
-//	if err != nil {
-//		log.Fatal("Connect weblib failed!\n")
-//		return
-//	}
-//
-//
-//	var group *Group
-//	if groupId == NULL || groupId == ZERO {
-//		if name == NULL {
-//			log.Fatal("Can not find the cabinet to store")
-//			return
-//		}
-//		category := getCategoryByCategoryName(database, PERSONAL_CATEGORY_NAME)
-//		group = getGroupByCategoryIdAndGroupDisplayName(database, category.id, name)
-//	} else {
-//		group = getGroupByGroupId(database,groupId)
-//	}
-//	if group == nil {
-//		log.Fatal("Can not find the user's cabinet")
-//		return
-//	}
-//
-//
-//	if isMultipart(request) {
-//		now := time.Now()
-//		fileNames := getFileNames(request.MultipartForm.File)
-//		if len(*fileNames) <= 0 {
-//			log.Fatal("resource file list is null")
-//			return
-//		}
-//
-//		//var uploadSize int64
-//		fileCount := getFileCountInMultiPartForm(request)
-//		for i := 0; i < fileCount; i++ {
-//			fileData := request.MultipartForm.File["filedata"][i]
-//			open, err := fileData.Open()
-//			if err != nil {
-//				log.Fatal("Can not open the File!\n")
-//				return
-//			}
-//			contentType := getFileContentType(open)
-//			filename := fileData.Filename
-//			data, err := ioutil.ReadAll(open)
-//			if err != nil {
-//				log.Fatal("read data from multipart file failed!\n")
-//				return
-//			}
-//			contentRangeSplit := strings.Split(contentRange, "-")
-//			startByte, _ := strconv.ParseInt(contentRangeSplit[0],10,64)
-//			endByte, _ := strconv.ParseInt(contentRangeSplit[1], 10, 64)
-//			total, _ := strconv.ParseInt(contentRangeSplit[2], 10, 64)
-//			if startByte == 0 {
-//				len := total / 1024
-//				tem := len * 1024
-//				if tem < total{
-//					len = len + 1
-//				}
-//				var pathTemp string
-//				if parentId == ZERO {
-//					pathTemp = "/"
-//				} else {
-//					parentResourcePath, _ := GetResourcePathById(database, parentId)
-//					pathTemp = parentResourcePath.path + parentId + "/"
-//				}
-//
-//				bean := &Resource{
-//					contentType:    contentType,
-//					now:            now,
-//					groupName:      group.name,
-//					memberId:       memberId,
-//					memberName:     memberName,
-//					fileName:       filename,
-//					flag:           UPLOAD_UNFINISH,
-//					total:          strconv.FormatInt(total, 10),
-//					size:           len,
-//					parentId:       parentId,
-//					lastModified:   lastModified,
-//					path:           pathTemp,
-//					resourceType:   RESOURCE_TYPE_FILE,
-//					resourceStatus: RESOURCE_STATUS_NORMAL,
-//				}
-//				resourceInfoIntoDatabase := saveResourceInfoIntoDatabase(database, bean)
-//				if resourceInfoIntoDatabase == NULL {
-//					log.Fatal("insert into database failed!\n")
-//					return
-//				}
-//
-//				fmt.Println(bean)
-//				var uriPath string
-//				copyFileToServer(data, uriPath, "part"+"0"+".tmp")
-//				modifyResourceReserveField1(database, resourceInfoIntoDatabase,"1")
-//			} else if endByte + 1 == total {
-//				resource := queryResourceByResourceId(database, resourceId)
-//				fmt.Println(resource)
-//				var uriPath string
-//				blockIndex := queryResourceReserveFiled1(database, resourceId)
-//				copyFileToServer(data, uriPath, "part"+blockIndex+".tmp")
-//
-//				temp, _ := strconv.Atoi(blockIndex)
-//				modifyResourceReserveField1(database, resourceId, strconv.Itoa(temp+1))
-//				mergeFile(uriPath, resource.path)
-//				//add upload log into log table
-//				displayName := getDisplayNameByGroupId(database, groupId)
-//				fmt.Println(displayName)
-//				//addUploadLog(database, groupId, displayName, resource)
-//			} else {
-//				resource := queryResourceByResourceId(database, resourceId)
-//				fmt.Println(resource)
-//				var uriPath string
-//				blockIndex := queryResourceReserveFiled1(database, resourceId)
-//				copyFileToServer(data, uriPath, "part"+blockIndex+".tmp")
-//				temp, _ := strconv.Atoi(blockIndex)
-//				modifyResourceReserveField1(database, resourceId, strconv.Itoa(temp+1))
-//			}
-//		}
-//	}
-//	defer database.Close()
-//
-//}
+func chunkUpload(request *http.Request) {
+	contentRange := request.Header.Get("Content-Range")
+	userAgent := request.Header.Get("User-Agent")
+	host := request.URL.Host
+	query := request.URL.Query()
+	groupId, _ := strconv.ParseInt(query.Get("groupId"), 10, 64)
+	parentId, _ := strconv.ParseInt(query.Get("parentId"), 10, 64)
+	lastModified := query.Get("lastModified")
+	//Correspond to weblib_group table ---- display_name field
+	name := query.Get("name")
+	//Correspond to weblib_group table ---- name field
+	memberId,_ := strconv.ParseInt(query.Get("currentMemberId"), 10, 64)
+	memberName := query.Get("currentMemberName")
+	//domainTags := query.Get("domainTags")
+	resourceId, _ := strconv.ParseInt(query.Get("resourceId"), 10, 64)
+
+	database, err := ConnectWebLibDatabase()
+	if err != nil {
+		log.Fatal("Connect weblib failed!\n")
+		return
+	}
+
+	var group *Group
+	if groupId == 0 {
+		if name == NULL {
+			log.Fatal("Can not find the cabinet to store")
+			return
+		}
+		category := getCategoryByCategoryName(database, PERSONAL_CATEGORY_NAME)
+		group = getGroupByCategoryIdAndGroupDisplayName(database, category.id, name)
+	} else {
+		group = getGroupByGroupId(database,groupId)
+	}
+	if group == nil {
+		log.Fatal("Can not find the user's cabinet")
+		return
+	}
+
+	if isMultipart(request) {
+		now := time.Now()
+		reader, err := request.MultipartReader()
+		if err != nil {
+			panic("Get multipart Reader failed!")
+		}
+		form, err := reader.ReadForm(2 << 30)
+		formNames := getFileNames(form.File)
+		if len(*formNames) <= 0 {
+			log.Fatal("resource file list is null")
+			return
+		}
+
+		isPersonalGroup := false
+		personGroupJudge := getGroupByMemberId(database, memberId)
+		if personGroupJudge.id == group.id {
+			isPersonalGroup = true
+		}
+		fmt.Println(isPersonalGroup)
+
+		fileCount := getFileCountInMultiPartForm(form)
+		var uploadSize int64
+		for i := 0; i < fileCount; i++ {
+			fileData := form.File["filedata"][i]
+			filename := fileData.Filename
+
+			open, err := fileData.Open()
+			if err != nil {
+				log.Fatal("open file error!\n")
+				return
+			}
+			data, err := ioutil.ReadAll(open)
+
+			if err != nil {
+				log.Fatal("read data from multipart file failed!\n")
+				return
+			}
+
+			startByte, endByte, totalSize := parseContentRange(contentRange)
+			byteSize := totalSize / 1024
+			if byteSize * 1024 < totalSize {
+				byteSize++
+			}
+			if startByte == 0 {
+				resource := &Resource{
+					contentType:      contentRange,
+					now:              now,
+					groupId:          groupId,
+					groupName:        group.name,
+					memberId:         memberId,
+					memberName:       memberName,
+					fileOriginalName: filename,
+					flag:             UPLOAD_UNFINISH,
+					detailSize:       totalSize,
+					size:             byteSize,
+					parentId:         parentId,
+				}
+				if lastModified != NULL {
+					timeLastModified, _ := time.Parse("2006-01-02 15:04:05", lastModified)
+					resource.lastModified = timeLastModified.String()
+				}
+				var pathTmp string
+				if parentId == 0 {
+					pathTmp = "/"
+				} else {
+					//through parentId get parent directory path
+					//get path
+					path := getResourcePathById(database, parentId)
+					pathTmp = path + strconv.FormatInt(parentId, 10) + "/"
+				}
+				resource.path = pathTmp
+				resource.resourceType = RESOURCE_TYPE_FILE
+				resource.resourceStatus = RESOURCE_STATUS_NORMAL
+				resourceInfoIntoDatabase := saveResourceInfoIntoDatabase(database, resource)
+				resource.id = resourceInfoIntoDatabase
+				tempFolder := getChunkUploadTempFolder(resource)
+				if resource == nil {
+					log.Fatal("resource pointer is null!\n")
+					return
+				}
+				resource.rate = 1
+				resource.flag = ONE
+
+				prefix, suffix := getResourceFileNamePreAndSuffix(resource.fileOriginalName)
+				resource.suffix = suffix
+				resource.filePreName = prefix
+				fileSizeValid := checkFileSizeValid(database, resource.detailSize, group)
+				if !fileSizeValid {
+					DeleteResourceInfoByResourceId(database, resource.id)
+				}
+				groupAvailableCapacity := checkGroupAvailableCapacity(resource.detailSize, group)
+				if !groupAvailableCapacity {
+					DeleteResourceInfoByResourceId(database, resource.id)
+				}
+				renameResource(resource, suffix)
+				checkResourceOriginalNameAndUpdate(database, resource)
+				updateResourceByResourceId(database, resource)
+				copyFileToServer(data, tempFolder, "0")
+				resource.reserveField = 1
+				updateResourceReserveFieldByResourceId(database, resource)
+			} else if endByte + 1 == totalSize {
+
+				resource := queryResourceByResourceId(database, resourceId)
+				tempFolder := getChunkUploadTempFolder(resource)
+				copyFileToServer(data, tempFolder, strconv.FormatInt(byteSize,10))
+				if lastModified != NULL {
+					timeLastModified, _ := time.Parse("2006-01-02 15:04:05", lastModified)
+					resource.lastModified = timeLastModified.String()
+				}
+				resource.reserveField = resource.reserveField + 1
+				updateResourceAtLastChunk(database, resource)
+				mergeFile(tempFolder,resource.path,resource.filePath)
+				uploadSize = uploadSize + resource.detailSize
+				modifyParentFolderSize(database, resource)
+				modifyGroupCapacityInfo(database, group, uploadSize)
+				addUploadLog(database, resource, group, host, userAgent)
+			} else {
+				resource := queryResourceByResourceId(database, resourceId)
+				tempFolder := getChunkUploadTempFolder(resource)
+				copyFileToServer(data, tempFolder, strconv.FormatInt(byteSize,10))
+				if lastModified != NULL {
+					timeLastModified, _ := time.Parse("2006-01-02 15:04:05", lastModified)
+					resource.lastModified = timeLastModified.String()
+				}
+				resource.reserveField = resource.reserveField + 1
+				updateResourceAtMiddle(database,resource)
+			}
+
+		}
+	}
+}
 
 //check request is post and head content multipart/form-data
 func isMultipart(request *http.Request) bool{
@@ -355,6 +386,7 @@ func getFileContentType(file multipart.File) string{
 	return contentType
 }
 
+//judge file type
 func copyFileToServer(data []byte, savePath, saveName string) bool{
 	if !dirIsExist(savePath) {
 		os.MkdirAll(savePath,0777)
@@ -367,6 +399,7 @@ func copyFileToServer(data []byte, savePath, saveName string) bool{
 		}
 		create, err := os.Create(saveName)
 		defer create.Close()
+		//TO-DO CRYPT FILE
 		create.Write(data)
 		return true
 	} else {
@@ -389,7 +422,7 @@ func dirIsExist(path string) bool {
 	return true
 }
 
-func mergeFile(tempPath, normalPath string) {
+func mergeFile(tempPath, normalPath,filePath string) {
 	tempPathIsExist := dirIsExist(tempPath)
 	if !tempPathIsExist {
 		log.Fatal("temp Path is not exist!\n")
@@ -405,16 +438,14 @@ func mergeFile(tempPath, normalPath string) {
 	for _, _ = range dir {
 		count++
 	}
-	file, err := os.OpenFile(normalPath+"fileName", os.O_WRONLY|os.O_APPEND, 0666)
-	defer file.Close()
+	normalFile, err := os.Create(normalPath + filePath)
+	defer normalFile.Close()
 	if err != nil {
-		if err != io.EOF {
-			log.Fatal(err)
-		}
+		panic("create file failed!")
 	}
 	bytes := make([]byte, 1024)
 	for i := 0; i < count; i++ {
-		indexName := "part" + strconv.Itoa(i) + ".tmp"
+		indexName := strconv.Itoa(i)
 		openFile, err := os.OpenFile(tempPath+indexName, os.O_RDONLY, 0666)
 		if err != nil {
 			if err != io.EOF {
@@ -427,11 +458,12 @@ func mergeFile(tempPath, normalPath string) {
 				log.Fatal("Read file failed")
 			}
 		}
-		file.Write(bytes[:read])
+		normalFile.Write(bytes[:read])
 		openFile.Close()
 		os.Remove(indexName)
 	}
-
+	os.Remove(tempPath)
+	//move to normal path and rename
 }
 
 func hasPermToUpload(database *sql.DB, resource *Resource) bool {
@@ -472,20 +504,20 @@ func beginUploadFile(data []byte, resource *Resource, group *Group, database *sq
 	prefix, suffix := getResourceFileNamePreAndSuffix(resource.fileOriginalName)
 	resource.suffix = suffix
 	resource.filePreName = prefix
-	fileSizeValid := checkFileSizeValid(database, resource.total, group)
+	fileSizeValid := checkFileSizeValid(database, resource.detailSize, group)
 	if !fileSizeValid {
 		DeleteResourceInfoByResourceId(database, resource.id)
 	}
-	groupAvailableCapacity := checkGroupAvailableCapacity(resource.total, group)
+	groupAvailableCapacity := checkGroupAvailableCapacity(resource.detailSize, group)
 	if !groupAvailableCapacity {
 		DeleteResourceInfoByResourceId(database, resource.id)
 	}
 	renameResource(resource, suffix)
 	checkResourceOriginalNameAndUpdate(database, resource)
+	path := getFileFullPath(database, resource, group)
+	copyFile := copyFileToServer(data, path, resource.filePath)
 	updateResourceByResourceId(database, resource)
 	if data != nil {
-		path := getFileFullPath(database, resource, group)
-		copyFile := copyFileToServer(data, path, resource.filePath)
 		if !copyFile {
 			DeleteResourceInfoByResourceId(database, resource.id)
 		}
@@ -502,19 +534,17 @@ func getResourceFileNamePreAndSuffix(fileName string) (string,string) {
 	}
 }
 
-func checkFileSizeValid(database *sql.DB, fileSize string, group *Group) bool {
+func checkFileSizeValid(database *sql.DB, fileSize int64, group *Group) bool {
 	groupType := getGroupTypeByTypeId(database, group.groupType)
-	fileSizeInt64, _ := strconv.ParseInt(fileSize, 10, 64)
-	if fileSizeInt64 > groupType.singleFileSize {
+	if fileSize/1024 > groupType.singleFileSize {
 		log.Fatal("File too large!\n")
 		return false
 	}
 	return true
 }
 
-func checkGroupAvailableCapacity(filesize string, group *Group) bool {
-	parseFileSize, _ := strconv.ParseInt(filesize, 10, 64)
-	if parseFileSize > group.availableCapacity {
+func checkGroupAvailableCapacity(fileSize int64, group *Group) bool {
+	if fileSize > group.availableCapacity {
 		log.Fatal("File too large!\n")
 		return false
 	}
@@ -576,8 +606,8 @@ func isDomainGroup(database *sql.DB, group *Group) string{
 }
 
 func modifyGroupCapacityInfo(database *sql.DB, group *Group, uploadSize int64) {
-	group.availableCapacity = group.availableCapacity - uploadSize
-	group.usedCapacity = group.usedCapacity + uploadSize
+	group.availableCapacity = group.availableCapacity - uploadSize / 1024
+	group.usedCapacity = group.usedCapacity + uploadSize / 1024
 	updateGroupCapacityInfo(database,group)
 }
 
@@ -589,4 +619,21 @@ func modifyParentFolderSize(database *sql.DB, resource *Resource) {
 		updateResourceSize(database, &parentFolder)
 		parentId = parentFolder.parentId
 	}
+}
+
+func parseContentRange(contentRange string) (int64, int64, int64) {
+	//Content-Range:bytes 1048576-2097151/10259052
+	splitSpace := strings.Split(contentRange, " ")
+	splitRowLine := strings.Split(splitSpace[1], "-")
+	startByte, _ := strconv.ParseInt(splitRowLine[0],10,64)
+	splitSlantLine := strings.Split(splitRowLine[1], "/")
+	endByte, _ := strconv.ParseInt(splitSlantLine[0], 10, 64)
+	totalSize, _ := strconv.ParseInt(splitSlantLine[1], 10, 64)
+	return startByte, endByte, totalSize
+}
+
+func getChunkUploadTempFolder(resource *Resource) string {
+	path := UPLOAD_TEMP_FOLDER + "/" + strconv.FormatInt(resource.memberId, 10) + "/" + strconv.FormatInt(resource.id, 10) +  "/"
+	os.MkdirAll(path,0777)
+	return path
 }
