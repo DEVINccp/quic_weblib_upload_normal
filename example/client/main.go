@@ -49,16 +49,10 @@ func main() {
 	keyLogFile := flag.String("keylog", "", "key log file")
 	insecure := flag.Bool("insecure", true, "skip certificate verification")
 	enableQlog := flag.Bool("qlog", false, "output a qlog (in the same directory)")
-	//filePath := flag.String("filePath","","upload file path")
-	//testResultStorePath := flag.String("testResult","","test result store path")
-	uploadPath := flag.String("uploadPath","/home/chengpingcai/Pictures/1M.zip","upload real path")
-	testResultPath := flag.String("testResultPath","/home/chengpingcai/Downloads/testResultM.txt","test result store path")
+	uploadPath := flag.String("uploadPath","/home/chengpingcai/Pictures/1KB.txt","upload real path")
+	testResultPath := flag.String("testResultPath","/home/chengpingcai/Downloads/testResult1M.txt","test result store path")
 	flag.Parse()
 	urls := flag.Args()
-	//filePath1 := "/home/chengpingcai/Pictures/1M.zip"
-	//filePath := &filePath1
-	//testResultStorePath1 := "/home/chengpingcai/Pictures/testResult.txt"
-	//testResultStorePath := &testResultStorePath1
 	logger := utils.DefaultLogger
 
 	if *verbose {
@@ -497,6 +491,10 @@ func timeTransferToSeconds(testTime string) string{
 		float, _ := strconv.ParseFloat(split[0], 64)
 		result := float / 1000
 		return strconv.FormatFloat(result,'f',10,64)
+	}
+	if strings.Contains(testTime,"s") && !strings.Contains(testTime,"h") && !strings.Contains(testTime,"m") {
+		split := strings.Split(testTime, "s")
+		return split[0]
 	}
 	if strings.Contains(testTime,"m") && !strings.Contains(testTime,"h"){
 		splitS := strings.Split(testTime, "s")

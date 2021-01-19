@@ -53,13 +53,13 @@ func uploadFile(request *http.Request) {
 
 	database, err := ConnectWebLibDatabase()
 	if err != nil {
-		log.Fatal("Connect weblib failed!\n")
+		panic("Connect weblib failed!\n")
 		return
 	}
 	var group *Group
 	if groupId == 0 {
 		if name == NULL {
-			log.Fatal("Can not find the cabinet to store")
+			panic("Can not find the cabinet to store")
 			return
 		}
 		category := getCategoryByCategoryName(database, PERSONAL_CATEGORY_NAME)
@@ -68,7 +68,7 @@ func uploadFile(request *http.Request) {
 		group = getGroupByGroupId(database,groupId)
 	}
 	if group == nil {
-		log.Fatal("Can not find the user's cabinet")
+		panic("Can not find the user's cabinet")
 		return
 	}
 
@@ -81,7 +81,7 @@ func uploadFile(request *http.Request) {
 		form, err := reader.ReadForm(2 << 30)
 		formNames := getFileNames(form.File)
 		if len(*formNames) <= 0 {
-			log.Fatal("resource file list is null")
+			panic("resource file list is null")
 			return
 		}
 
@@ -101,13 +101,13 @@ func uploadFile(request *http.Request) {
 
 			open, err := fileData.Open()
 			if err != nil {
-				log.Fatal("open file error!\n")
+				panic("open file error!\n")
 				return
 			}
 			data, err := ioutil.ReadAll(open)
 
 			if err != nil {
-				log.Fatal("read data from multipart file failed!\n")
+				panic("read data from multipart file failed!\n")
 				return
 			}
 			//Domain tag default
@@ -371,7 +371,7 @@ func getFileCountInMultiPartForm(form *multipart.Form) int{
 	}
 
 	if len(allFile) <= 0 {
-		log.Fatal("resource file list is null")
+		panic("resource file list is null")
 		return 0
 	}
 
@@ -394,7 +394,7 @@ func copyFileToServer(data []byte, savePath, saveName string) bool{
 	if dirIsExist(savePath) {
 		err := os.Chdir(savePath)
 		if err != nil {
-			log.Fatal("change directory error!\n")
+			panic("change directory error!\n")
 			return false
 		}
 		create, err := os.Create(saveName)
@@ -403,7 +403,7 @@ func copyFileToServer(data []byte, savePath, saveName string) bool{
 		create.Write(data)
 		return true
 	} else {
-		log.Fatal("Path not exist")
+		panic("Path not exist")
 		return false
 	}
 }
@@ -425,12 +425,12 @@ func dirIsExist(path string) bool {
 func mergeFile(tempPath, normalPath,filePath string) {
 	tempPathIsExist := dirIsExist(tempPath)
 	if !tempPathIsExist {
-		log.Fatal("temp Path is not exist!\n")
+		panic("temp Path is not exist!\n")
 		return
 	}
 	normalPathIsExist := dirIsExist(normalPath)
 	if !normalPathIsExist {
-		log.Fatal("normal Path is not exist!\n")
+		panic("normal Path is not exist!\n")
 		return
 	}
 	dir, _ := ioutil.ReadDir(tempPath)
@@ -449,13 +449,13 @@ func mergeFile(tempPath, normalPath,filePath string) {
 		openFile, err := os.OpenFile(tempPath+indexName, os.O_RDONLY, 0666)
 		if err != nil {
 			if err != io.EOF {
-				log.Fatal("Open file failed")
+				panic("Open file failed")
 			}
 		}
 		read, err := openFile.Read(bytes)
 		if err != nil {
 			if err != io.EOF {
-				log.Fatal("Read file failed")
+				panic("Read file failed")
 			}
 		}
 		normalFile.Write(bytes[:read])
@@ -495,7 +495,7 @@ func hasPermToUpload(database *sql.DB, resource *Resource) bool {
 
 func beginUploadFile(data []byte, resource *Resource, group *Group, database *sql.DB, host, userAgent string) {
 	if resource == nil {
-		log.Fatal("resource pointer is null!\n")
+		panic("resource pointer is null!\n")
 		return
 	}
 	resource.rate = 0
@@ -537,7 +537,7 @@ func getResourceFileNamePreAndSuffix(fileName string) (string,string) {
 func checkFileSizeValid(database *sql.DB, fileSize int64, group *Group) bool {
 	groupType := getGroupTypeByTypeId(database, group.groupType)
 	if fileSize/1024 > groupType.singleFileSize {
-		log.Fatal("File too large!\n")
+		panic("File too large!\n")
 		return false
 	}
 	return true
@@ -545,7 +545,7 @@ func checkFileSizeValid(database *sql.DB, fileSize int64, group *Group) bool {
 
 func checkGroupAvailableCapacity(fileSize int64, group *Group) bool {
 	if fileSize > group.availableCapacity {
-		log.Fatal("File too large!\n")
+		panic("File too large!\n")
 		return false
 	}
 	return true
@@ -577,7 +577,7 @@ func getFileFullPath(database *sql.DB, resource *Resource, group *Group) string 
 		os.MkdirAll(path,0777)
 		return path
 	} else {
-		log.Fatal("bad configuration for domain resource path!\n")
+		panic("bad configuration for domain resource path!\n")
 	}
 	return NULL
 }
@@ -585,7 +585,7 @@ func getFileFullPath(database *sql.DB, resource *Resource, group *Group) string 
 func isDomainGroup(database *sql.DB, group *Group) string{
 	category := getCategoryByCategoryName(database, ROOT_DOMAIN_NAME)
 	if category == nil {
-		log.Fatal("category is nil!\n")
+		panic("category is nil!\n")
 		return ""
 	}
 	id := group.categoryId

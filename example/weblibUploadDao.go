@@ -3,7 +3,6 @@ package main
 import (
 	"database/sql"
 	"fmt"
-	"log"
 	"time"
 )
 
@@ -65,7 +64,7 @@ func addUploadLog(DB *sql.DB, resource *Resource, group *Group, host, userAgent 
 	_, err := DB.Exec("insert into weblib_upload_log(account,member_name,member_id,ip,create_date,terminal,target_object,target_object_id,group_name,group_id) values(?,?,?,?,?,?,?,?,?,?)",
 		user.account, member.name, member.id, host, now, userAgent, resource.fileOriginalName, resource.id, group.displayName, group.id)
 	if err != nil {
-		log.Fatal("query resource failed!\n")
+		panic("query resource failed!\n")
 		return
 	}
 }
@@ -76,7 +75,7 @@ func getCategoryByCategoryName(DB *sql.DB, categoryName string) *Category{
 	row := DB.QueryRow("select id,name from weblib_category where name=?", categoryName)
 	err := row.Scan(&category.id, &category.name)
 	if err != nil {
-		log.Fatal("query weblib category failed!\n")
+		panic("query weblib category failed!\n")
 		return nil
 	}
 	return category
@@ -88,7 +87,7 @@ func getResourcePathById(DB *sql.DB, id int64) string {
 	row := DB.QueryRow("select path from weblib_group_resource where id=?", id)
 	err := row.Scan(&path)
 	if err != nil {
-		log.Fatal("query weblib group failed!\n")
+		panic("query weblib group failed!\n")
 		return ""
 	}
 	return path
@@ -99,7 +98,7 @@ func getGroupTypeByTypeId(DB *sql.DB, groupTypeId string) *GroupType {
 	row := DB.QueryRow("select id,single_file_size from weblib_group_type where id=?", groupTypeId)
 	err := row.Scan(&groupType.id, &groupType.singleFileSize)
 	if err != nil {
-		log.Fatal("query weblib group failed!\n")
+		panic("query weblib group failed!\n")
 		return nil
 	}
 	return groupType
@@ -120,7 +119,7 @@ func getCategoryByGroupCategoryId(DB *sql.DB, categoryId int64) *Category{
 	row := DB.QueryRow("select id,parent_id,name from weblib_category where id=?", categoryId)
 	err := row.Scan(&category.id, &category.parentId, &category.name)
 	if err != nil {
-		log.Fatal("query weblib group failed!\n")
+		panic("query weblib group failed!\n")
 		return nil
 	}
 	return category
@@ -131,7 +130,7 @@ func getDomainCategoryByCategoryId(DB *sql.DB, categoryId int64) *DomainCategory
 	row := DB.QueryRow("select id,relative_path,category_id,domain_id from weblib_domain_category where category_id=?", categoryId)
 	err := row.Scan(&domainCategory.id, &domainCategory.relativePath, &domainCategory.categoryId, &domainCategory.domainId)
 	if err != nil {
-		log.Fatal("query category domain failed!\n")
+		panic("query category domain failed!\n")
 		return nil
 	}
 	return domainCategory
@@ -143,7 +142,7 @@ func getMemberAccountByMemberId(DB *sql.DB, memberId int64) *Member {
 	err := row.Scan(&member.id, &member.name, &member.account)
 
 	if err != nil {
-		log.Fatal("query category domain failed!\n")
+		panic("query category domain failed!\n")
 		return nil
 	}
 	return member
@@ -154,7 +153,7 @@ func getUserIdByAccount(DB *sql.DB, account string) *User {
 	row := DB.QueryRow("select id,account from sys_user where account=?", account)
 	err := row.Scan(&user.id, &user.account)
 	if err != nil {
-		log.Fatal("query category domain failed!\n")
+		panic("query category domain failed!\n")
 		return nil
 	}
 	return user

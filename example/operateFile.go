@@ -24,13 +24,13 @@ func MergeFile(uuid string, fileLength int) {
 		openFile, err := os.OpenFile(indexPath, os.O_RDONLY, 0666)
 		if err != nil {
 			if err != io.EOF {
-				log.Fatal("Open file failed")
+				panic("Open file failed")
 			}
 		}
 		read, err := openFile.Read(bytes)
 		if err != nil {
 			if err != io.EOF {
-				log.Fatal("Read file failed")
+				panic("Read file failed")
 			}
 		}
 		file.Write(bytes[:read])
@@ -40,7 +40,7 @@ func MergeFile(uuid string, fileLength int) {
 	file.Close()
 	err = os.Rename(uuid+"_1", uuid)
 	if err != nil {
-		log.Fatal(err)
+		panic(err)
 		return
 	}
 }
