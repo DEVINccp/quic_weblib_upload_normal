@@ -7,10 +7,10 @@ import (
 )
 
 const (
-	USERNAME = "root"
-	PASSWORD = "ccnl4780#"
+	USERNAME = "weblib"
+	PASSWORD = "weblib"
 	NETWORK = "tcp"
-	SERVER = "192.168.1.199"
+	SERVER = "192.168.1.120"
 	PORT = 3306
 	DATABASE = "weblibnew"
 )

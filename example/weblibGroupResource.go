@@ -48,9 +48,7 @@ func GetResourcePathById(DB *sql.DB, parentId string) (*Resource,error) {
 
 func saveResourceInfoIntoDatabase(DB *sql.DB, resource *Resource) int64{
 	createDate := resource.now.Format("2006-01-02 15:04:05")
-	exec, err := DB.Exec("insert into weblib_group_resource(parent_id,group_id,group_name,member_id,member_name,content_type,create_date,original_name,finish_sign,detail_size,"+
-		"size,path,type,resource_status,upload_rate,name) values(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", resource.parentId, resource.groupId, resource.groupName, resource.memberId, resource.memberName,
-		resource.contentType, createDate, resource.fileOriginalName, resource.flag, resource.detailSize, resource.size, resource.path, resource.resourceType, resource.resourceStatus, resource.rate,resource.name)
+	exec, err := DB.Exec("insert into weblib_group_resource(parent_id,group_id,group_name,member_id,member_name,content_type,create_date,original_name,finish_sign,detail_size,size,path,type,resource_status,upload_rate,name) values(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", resource.parentId, resource.groupId, resource.groupName, resource.memberId, resource.memberName, resource.contentType, createDate, resource.fileOriginalName, resource.flag, resource.detailSize, resource.size, resource.path, resource.resourceType, resource.resourceStatus, resource.rate, resource.name)
 	resourceId, err := exec.LastInsertId()
 	if err != nil {
 		fmt.Printf("Insert data into fileState failed, err：%v\n", err)

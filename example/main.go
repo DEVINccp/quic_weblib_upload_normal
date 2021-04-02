@@ -3,10 +3,19 @@ package main
 import (
 	"bufio"
 	"crypto/md5"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
+	"github.com/lucas-clemente/quic-go"
+	"github.com/lucas-clemente/quic-go/example/networkMeasure"
 	"github.com/lucas-clemente/quic-go/example/oauth"
+	"github.com/lucas-clemente/quic-go/http3"
+	"github.com/lucas-clemente/quic-go/internal/testdata"
+	"github.com/lucas-clemente/quic-go/internal/utils"
+	"github.com/lucas-clemente/quic-go/logging"
+	"github.com/lucas-clemente/quic-go/qlog"
+	"github.com/lucas-clemente/quic-go/quictrace"
 	"io"
 	"io/ioutil"
 	"log"
@@ -18,14 +27,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-
-	"github.com/lucas-clemente/quic-go"
-	"github.com/lucas-clemente/quic-go/http3"
-	"github.com/lucas-clemente/quic-go/internal/testdata"
-	"github.com/lucas-clemente/quic-go/internal/utils"
-	"github.com/lucas-clemente/quic-go/logging"
-	"github.com/lucas-clemente/quic-go/qlog"
-	"github.com/lucas-clemente/quic-go/quictrace"
 
 	_ "github.com/satori/go.uuid"
 )
@@ -68,6 +69,18 @@ const (
 	FILEPATH = "/home/chengpingcai/Downloads/"
 	FRAGMENTSIZE = 5242880
 )
+
+type PredictResult struct {
+	Model string `json:"model"`
+	PredictProtocol string `json:"predictProtocol"`
+}
+
+type PredictResponse struct {
+	Code string `json:"code"`
+	Message string `json:"message"`
+	Model string `json:"model"`
+	PredictProtocol string `json:"predictProtocol"`
+}
 
 func init() {
 	tracer = quictrace.NewTracer()
@@ -318,6 +331,93 @@ func setupHandler(www string, trace bool) http.Handler {
 		writer.Write([]byte("info page"))
 	})
 
+	mux.HandleFunc("/getPredictProtocol", func(writer http.ResponseWriter, request *http.Request) {
+		//accessToken := request.Header.Get("Authorization")
+		//if accessToken == NULL {
+		//	//There can redirect to login.html TO-DO
+		//	writer.Write([]byte("please login!\n"))
+		//	return
+		//}
+		//
+		//isValidAccessToken := oauth.DecodeRsaToken(accessToken)
+		//if !isValidAccessToken {
+		//	writer.Write([]byte("access toekn invalid!\n"))
+		//	return
+		//}
+		request.ParseForm()
+		fileLength := request.FormValue("fileLength")
+		networkBandwidth := request.FormValue("networkBandwidth")
+		ipAndPort := request.Host
+		splitIpAndPort := strings.Split(ipAndPort, ":")
+		lossRate, avagDelay := networkMeasure.NetworkSituation(splitIpAndPort[0])
+		stringLossRate := strconv.FormatFloat(lossRate, 'f', 10, 64)
+		stringAvagDelay := strconv.FormatFloat(avagDelay, 'f', 10, 64)
+		predictPath := "http://192.168.1.116:8088/getPredictProtocol?"+stringLossRate+"&"+stringAvagDelay+"&"+fileLength+"&"+networkBandwidth
+		transport := &http.Transport{}
+		predictClient := &http.Client{
+			Transport: transport,
+		}
+		predictResponse, responseErr := predictClient.Get(predictPath)
+		predict :=PredictResponse{}
+		if responseErr != nil {
+			predict = PredictResponse{
+				Code: "500",
+				Message: "Predict Failed! Return Default Value",
+				Model: "tree",
+				PredictProtocol: "quic",
+			}
+			writer.Header().Set("Content-Type","application/json")
+			encodeErr := json.NewEncoder(writer).Encode(&predict)
+			if encodeErr != nil {
+				panic("Encode error!")
+			}
+			return
+		}
+		parseBody, parseErr := ioutil.ReadAll(predictResponse.Body)
+		if parseErr != nil {
+			panic("parse predict response body failed.")
+		}
+		predictResult := PredictResult{}
+		jsonDecodeErr := json.Unmarshal(parseBody, &predictResult)
+		if jsonDecodeErr != nil {
+			panic(jsonDecodeErr)
+		}
+		writer.Header().Set("Content-Type","application/json")
+		predict = PredictResponse{
+			Code: "200",
+			Message: "ok",
+			Model: predictResult.Model,
+			PredictProtocol: predictResult.PredictProtocol,
+		}
+		encodeErr := json.NewEncoder(writer).Encode(&predict)
+		if encodeErr != nil {
+			panic("Encode error!")
+		}
+		return
+	})
+
+	mux.HandleFunc("/timeConsumingUpload", func(writer http.ResponseWriter, request *http.Request) {
+		//accessToken := request.Header.Get("Authorization")
+		//if accessToken == NULL {
+		//	//There can redirect to login.html TO-DO
+		//	writer.Write([]byte("please login!\n"))
+		//	return
+		//}
+
+		//isValidAccessToken := oauth.DecodeRsaToken(accessToken)
+		//if !isValidAccessToken {
+		//	writer.Write([]byte("access toekn invalid!\n"))
+		//	return
+		//}
+		query := request.URL.Query()
+		netWorkLoss := query.Get("networkLoss")
+		networkRtt := query.Get("networkRTT")
+		networkBandwidth := query.Get("networkBandwidth")
+		fileLength := query.Get("fileLength")
+		transportTime := query.Get("transportTime")
+		fmt.Println(netWorkLoss+networkRtt+networkBandwidth+fileLength+fileLength+transportTime)
+	})
+
 	mux.HandleFunc("/uploadChunkResource", func(writer http.ResponseWriter, request *http.Request) {
 		//accessToken := request.Header.Get("Authorization")
 		//if accessToken == NULL {
@@ -389,8 +489,8 @@ func main() {
 	flag.Parse()
 
 	//register server to eureka
-	//defaultZone := "http://192.168.1.116:7071/eureka/"
-	//appName := "quic-upload"
+	//defaultZone := "http://192.168.1.199:7071/eureka/"
+	//appName := "quic-file-transport"
 	//port := 6121
 	//renewalInterval := 10
 	//durationInterval := 30

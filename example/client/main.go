@@ -7,6 +7,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/hex"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"github.com/lucas-clemente/quic-go"
@@ -31,17 +32,26 @@ import (
 )
 
 const (
-	CHECKFILESTATEURL = "https://192.168.1.199:6121/demo/checkFileState"
-	CHECKINDEX = "https://192.168.1.199:6121/demo/checkIndex"
-	INDEXUPLOAD = "https://192.168.1.199:6121/demo/indexUpload"
-	FILESTATERECORD = "https://192.168.1.199:6121/demo/fileStateRecord"
+	CHECKFILESTATEURL = "https://192.168.1.120:6121/demo/checkFileState"
+	CHECKINDEX = "https://192.168.1.120:6121/demo/checkIndex"
+	INDEXUPLOAD = "https://192.168.1.120:6121/demo/indexUpload"
+	FILESTATERECORD = "https://192.168.1.120:6121/demo/fileStateRecord"
 	FILEUPLOADSUCCESS = "2"
 	FILEUPLOADSECTION = "1"
 	FILEUPLOADNONE = "0"
 	SUCCESS = "success"
 	FAIL = "fail"
 	FRAGMENTSIZE = 5242880
+	QUIC = "quic"
+	TCP = "tcp"
 )
+
+type PredictResponse struct {
+	Code string `json:"code"`
+	Message string `json:"message"`
+	Model string `json:"model"`
+	PredictProtocol string `json:"predictProtocol"`
+}
 
 func main() {
 	verbose := flag.Bool("v", false, "verbose")
@@ -49,8 +59,8 @@ func main() {
 	keyLogFile := flag.String("keylog", "", "key log file")
 	insecure := flag.Bool("insecure", true, "skip certificate verification")
 	enableQlog := flag.Bool("qlog", false, "output a qlog (in the same directory)")
-	uploadPath := flag.String("uploadPath","/home/chengpingcai/Pictures/1KB.txt","upload real path")
-	testResultPath := flag.String("testResultPath","/home/chengpingcai/Downloads/testResult1M.txt","test result store path")
+	uploadPath := flag.String("uploadPath","/home/chengpingcai/Pictures/10M.zip","upload real path")
+	testResultPath := flag.String("testResultPath","/home/chengpingcai/Downloads/testResult1KB.txt","test result store path")
 	flag.Parse()
 	urls := flag.Args()
 	logger := utils.DefaultLogger
@@ -99,8 +109,15 @@ func main() {
 		QuicConfig: &qconf,
 	}
 	defer roundTripper.Close()
-	hClient := &http.Client{
+	quicClient := &http.Client{
 		Transport: roundTripper,
+	}
+
+	tcpTransport := &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	}
+	tcpClient := &http.Client{
+		Transport: tcpTransport,
 	}
 
 	var wg sync.WaitGroup
@@ -108,8 +125,7 @@ func main() {
 	//simpleChunkUpload(filepath,testResultStorePath,hClient)
 	param := map[string]string{"groupId": "20",
 		"parentId":"22","currentMemberId":"20","currentMemberName":"root","name":"root"}
-	//uploadPath := "/home/chengpingcai/Pictures/50M.zip"
-	uploadRequest, err := uploadFileIntoWeblib(*uploadPath, "https://192.168.1.199:6121/uploadChunkResource", param)
+	uploadQuicRequest, err := uploadFileIntoWeblib(*uploadPath, "https://192.168.1.120:6121/uploadChunkResource", param)
 	open, err := os.Open(*uploadPath)
 	if err != nil {
 		log.Fatal("open file failed!")
@@ -118,13 +134,34 @@ func main() {
 	stat, err := open.Stat()
 	size := stat.Size()
 	filesize := strconv.FormatInt(size, 10)
-	uploadRequest.Header.Add("filename",stat.Name())
-	uploadRequest.Header.Add("filesize",filesize)
+	uploadQuicRequest.Header.Add("filename",stat.Name())
+	uploadQuicRequest.Header.Add("filesize",filesize)
 	if err != nil {
 		log.Fatal("make request failed!")
 	}
 	start := time.Now()
-	hClient.Do(uploadRequest)
+	networkBandwidth := "20.0"
+	getPredictProtocol, err := tcpClient.Get("http://192.168.1.116:8088/getPredictProtocol?fileLength=" + filesize + "&networkBandwidth=" + networkBandwidth)
+	if err != nil {
+		println("predict fail! use default protocol.")
+		quicClient.Do(uploadQuicRequest)
+	} else {
+		predictProtocol, _ := ioutil.ReadAll(getPredictProtocol.Body)
+		predictResponse := PredictResponse{}
+		jsonDecodeErr := json.Unmarshal(predictProtocol, &predictResponse)
+		if jsonDecodeErr != nil {
+			panic(jsonDecodeErr)
+		}
+		if predictResponse.PredictProtocol == QUIC {
+			quicClient.Do(uploadQuicRequest)
+		} else if predictResponse.PredictProtocol == TCP {
+			tcpClient.Do(uploadQuicRequest)
+		} else {
+			quicClient.Do(uploadQuicRequest)
+		}
+	}
+
+	//quicClient.Do(uploadRequest)
 	end := time.Since(start)
 	//testResult := "fileName:" + stat.Name() + ";fileSize:" + filesize + ";time:" + end.String() +"\n"
 
@@ -134,7 +171,7 @@ func main() {
 	for _, addr := range urls {
 		logger.Infof("GET %s", addr)
 		go func(addr string) {
-			rsp, err := hClient.Get(addr)
+			rsp, err := quicClient.Get(addr)
 			if err != nil {
 				log.Fatal(err)
 			}
@@ -391,7 +428,7 @@ func uploadIndex1(filePath, uuid string, index int, hClient *http.Client) error{
 func writeTestResultIntoFile(testResultPath,result string) {
 	exist := checkFilePathExist(testResultPath)
 	if exist {
-		file, err := os.OpenFile(testResultPath, os.O_WRONLY|os.O_APPEND, 0666)
+		file, err := os.OpenFile(testResultPath, os.O_WRONLY|os.O_APPEND, 0777)
 		defer file.Close()
 		if err != nil {
 			log.Fatal("open file failed")

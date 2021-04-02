@@ -8,7 +8,7 @@ import (
 )
 
 func DecodeRsaToken(accessToken string) bool{
-	keyBytes, err := ioutil.ReadFile("public.key")
+	keyBytes, err := ioutil.ReadFile("/home/chengpingcai/Devlop/soucode/quic-go-0.18.1/example/oauth/public.key")
 	if err != nil {
 		panic("invalid key file")
 	}

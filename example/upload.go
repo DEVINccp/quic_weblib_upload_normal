@@ -104,6 +104,7 @@ func uploadFile(request *http.Request) {
 				panic("open file error!\n")
 				return
 			}
+			defer open.Close()
 			data, err := ioutil.ReadAll(open)
 
 			if err != nil {
@@ -173,7 +174,7 @@ func uploadFile(request *http.Request) {
 		//modify capacity
 		modifyGroupCapacityInfo(database, group, uploadSize)
 	}
-	defer database.Close()
+	database.Close()
 }
 
 func chunkUpload(request *http.Request) {
